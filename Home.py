@@ -30,24 +30,18 @@ st.markdown("#### 北京科技大学天码智能社")
 col1, col2 = st.columns([1, 2], gap="large")
 
 with col1:
-
-
     # 算法类别展示
     st.markdown("### 📚 算法体系")
-    st.markdown("""
-    <div class="algorithm-list">
-    <ul>
-    <li>数据归一化/标准化</li>
-    <li>多元回归/拟合</li>
-    <li>多准则决策分析/评估</li>
-    <li>时间序列预测分析</li>
-    <li>数据挖掘分析</li>
-    <li>优化运筹</li>
-    <li>启发式算法</li>
-    <li>数据预处理/异常值处理</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<span style='color: #888; font-size:0.98em;'>点击下方算法名称可直接跳转对应页面</span>", unsafe_allow_html=True)
+    # 使用st.page_link实现点击跳转
+    st.page_link("pages/1Normalize.py", label="数据归一化/标准化", icon="🧮")
+    st.page_link("pages/2Regression.py", label="多元回归/拟合", icon="📈")
+    st.page_link("pages/3Evaluate.py", label="多准则决策分析/评估", icon="📊")
+    st.page_link("pages/4Time_Series.py", label="时间序列预测分析", icon="⏳")
+    st.page_link("pages/5Data_Mining.py", label="数据挖掘分析", icon="🔎")
+    st.page_link("pages/6Optimize.py", label="优化运筹", icon="📐")
+    st.page_link("pages/7Heuristic.py", label="启发式算法", icon="🧠")
+    st.page_link("pages/8Outlier.py", label="数据预处理/异常值处理", icon="🧹")
 
 with col2:
     # 使用指南
@@ -75,5 +69,5 @@ with col2:
 # 页脚
 st.markdown("---")
 st.markdown("""
-<small>技术支持：天码智能社 | 版本：1.0 | 更新日期：2024-03</small>
+<small>技术支持：天码智能社 | 版本：1.1 | 更新日期：2024-05</small>
 """, unsafe_allow_html=True)

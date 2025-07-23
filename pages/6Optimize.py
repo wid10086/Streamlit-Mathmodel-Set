@@ -55,13 +55,13 @@ def validate_nonlinear_inputs(x0, bounds):
 
 # ================= 页面布局 =================
 st.set_page_config(layout="wide")
-st.title("优化运筹")
+st.title("📐 优化运筹")
 
 # ================= 方法选择 =================
-method = st.selectbox("选择求解方法", ["线性规划", "非线性规划"])
+method = st.selectbox("🧮 选择求解方法", ["线性规划", "非线性规划"])
 
 # ================= 示例说明 =================
-with st.expander("示例说明(inf为正无穷大)", expanded=False):
+with st.expander("💡 示例说明(inf为正无穷大)", expanded=False):
     if method == "线性规划":
         st.markdown("""
         **示例问题**:
@@ -104,7 +104,7 @@ with st.expander("示例说明(inf为正无穷大)", expanded=False):
         """)
 
 # ================= 动态参数输入 =================
-with st.expander("问题配置（需用英文输入法逗号）", expanded=True):
+with st.expander("⚙️ 问题配置（需用英文输入法逗号）", expanded=True):
     if method == "线性规划":
         # 示例数据
         example_lp = {
@@ -164,7 +164,7 @@ with st.expander("问题配置（需用英文输入法逗号）", expanded=True)
                 [f"{c['type']},{c['func']}" for c in example_nlp["constraints"]]))
 
 # ================= 求解执行 =================
-if st.button("运行求解"):
+if st.button("🚀 运行求解"):
     try:
         if method == "线性规划":
             # 解析输入
@@ -213,8 +213,8 @@ if f"optimize_{method}_result" in st.session_state:
     result = st.session_state[f"optimize_{method}_result"]
     n_vars = st.session_state.get("optimize_n_vars", 0)
 
-    with st.expander("求解结果", expanded=True):
-        st.write(f"**变量数量**: {n_vars}")  # 新增显示变量数量
+    with st.expander("📈 求解结果", expanded=True):
+        st.write(f"**变量数量**: {n_vars}")
         st.write(f"**求解状态**: {'成功' if result['success'] else '失败'}")
         st.write(f"**最优解**: {result['x']}")
         st.write(f"**最优值**: {result['fun']:.4f}")
@@ -228,7 +228,7 @@ if f"optimize_{method}_result" in st.session_state:
         excel_buffer = BytesIO()
         df.to_excel(excel_buffer, index=False)
         st.download_button(
-            label="下载结果",
+            label="⬇️ 下载结果",
             data=excel_buffer.getvalue(),
             file_name=f"{method}_result.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

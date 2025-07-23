@@ -210,66 +210,73 @@ def autoencoder_reduction(data, encoding_dim=2, epochs=50, batch_size=32, learni
 
 
 # ================= 页面配置 =================
-st.set_page_config(layout="wide", page_title="数据挖掘分析")
-st.title("数据挖掘分析")
+st.set_page_config(layout="wide", page_title="🔎 数据挖掘分析")
+st.title("🔎 数据挖掘分析")
 
 # ================= 数据配置 =================
 with st.expander("📊 数据配置", expanded=True):
-    data_col1, data_col2 = st.columns([1, 2])
+    data_source = st.radio(
+        "请选择数据来源",
+        options=["生成示例数据", "上传自定义数据"],
+        horizontal=True,
+        key="data_mining_data_source_radio"
+    )
 
-    with data_col1:
-        st.subheader("示例数据生成")
+    if data_source == "生成示例数据":
+        st.subheader("✨ 示例数据生成")
+        x1, x2 = st.columns(2)
         method_type = st.session_state.get("data_mining_method", "降维分析")
-        n_features = st.number_input("特征数量", 2, 50, 10)
-        n_samples = st.number_input("样本数量", 50, 1000, 200)
-        add_noise = st.checkbox("添加噪声")
-        add_outliers = st.checkbox("添加离群点")
+        n_features = x1.number_input("特征数量", 2, 50, 10, key="n_features")
+        n_samples = x2.number_input("样本数量", 50, 1000, 200, key="n_samples")
+        add_noise = x1.checkbox("添加噪声", key="add_noise")
+        add_outliers = x2.checkbox("添加离群点", key="add_outliers")
 
-        if st.button("生成示例数据"):
-            # 根据方法类型生成不同结构的数据
-            np.random.seed(42)
-            X = np.random.randn(n_samples, n_features)
-            if add_noise:
-                X += np.random.normal(0, 0.5, X.shape)
-            if add_outliers:
-                outlier_idx = np.random.choice(n_samples, size=max(3, n_samples // 20), replace=False)
-                X[outlier_idx] *= 5
-
-            # 生成标签（用于LDA/Kappa等需要标签的方法）
-            y = np.random.randint(0, 3, n_samples)
-            df = pd.DataFrame(X, columns=[f"Feature_{i}" for i in range(n_features)])
-            df["Label"] = y
-
-            st.session_state.data_mining_data = df
-            st.success("示例数据生成成功！")
-
-    with data_col2:
-        st.subheader("上传自定义数据")
-        uploaded_file = st.file_uploader("上传CSV/Excel文件", type=["csv", "xlsx"])
-        if uploaded_file:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-
-                # 自动检测标签列
-                label_col = st.selectbox("选择标签列（可选）", ["无"] + list(df.columns))
-                if label_col != "无":
-                    df = df.rename(columns={label_col: "Label"})
-
+        with st.form("data_mining_example_form"):
+            submit_example = st.form_submit_button("生成示例数据")
+            if submit_example:
+                np.random.seed(42)
+                X = np.random.randn(n_samples, n_features)
+                if add_noise:
+                    X += np.random.normal(0, 0.5, X.shape)
+                if add_outliers:
+                    outlier_idx = np.random.choice(n_samples, size=max(3, n_samples // 20), replace=False)
+                    X[outlier_idx] *= 5
+                y = np.random.randint(0, 3, n_samples)
+                df = pd.DataFrame(X, columns=[f"Feature_{i}" for i in range(n_features)])
+                df["Label"] = y
                 st.session_state.data_mining_data = df
-                st.success("数据加载成功！")
-            except Exception as e:
-                st.error(f"数据加载错误: {str(e)}")
+                st.success("示例数据生成成功！")
+
+    elif data_source == "上传自定义数据":
+        st.subheader("📤 上传自定义数据")
+        with st.form("data_mining_upload_form"):
+            uploaded_file = st.file_uploader("上传CSV/Excel文件", type=["csv", "xlsx"], key="data_mining_upload")
+            submit_upload = st.form_submit_button("上传数据")
+            if submit_upload and uploaded_file:
+                try:
+                    if uploaded_file.name.endswith('.csv'):
+                        df = pd.read_csv(uploaded_file)
+                    else:
+                        df = pd.read_excel(uploaded_file)
+                    label_col = st.selectbox("选择标签列（可选）", ["无"] + list(df.columns), key="data_mining_label_col")
+                    if label_col != "无":
+                        df = df.rename(columns={label_col: "Label"})
+                    st.session_state.data_mining_data = df
+                    st.success("数据加载成功！")
+                except Exception as e:
+                    st.error(f"数据加载错误: {str(e)}")
+            elif submit_upload and not uploaded_file:
+                st.warning("请先上传文件。")
 
 # ================= 数据预览 =================
-if "data_mining_data" in st.session_state:
-    with st.expander("🔍 数据预览", expanded=True):
-        df = st.session_state.data_mining_data
-        cols = st.columns([2, 1])
-        cols[0].dataframe(df)
-        cols[1].write(f"数据维度：{df.shape}")
+with st.expander("🔍 数据预览", expanded=False):
+    if "data_mining_data" not in st.session_state:
+        st.warning("请先生成或上传数据")
+        st.stop()
+    df = st.session_state.data_mining_data
+    cols = st.columns([2, 1])
+    cols[0].dataframe(df)
+    cols[1].write(f"📏 数据维度：{df.shape}")
 
 # ================= 方法选择与参数配置 =================
 st.markdown("---")
@@ -280,8 +287,8 @@ method_options = {
     "聚类分析": ["K-means", "DBSCAN", "层次聚类"]
 }
 
-method_category = st.selectbox("选择方法类别", list(method_options.keys()))
-method = st.selectbox("选择具体方法", method_options[method_category])
+method_category = st.selectbox("🧮 选择方法类别", list(method_options.keys()))
+method = st.selectbox("🧩 选择具体方法", method_options[method_category])
 
 params = {}
 selected_features = []  # 新增：存储选择的特征
@@ -339,7 +346,7 @@ with st.expander("⚙️ 参数配置"):
             default=available_features[:2] if len(available_features)>=2 else []
         )
 # ================= 执行分析 =================
-if st.button("开始分析") and "data_mining_data" in st.session_state:
+if st.button("🚀 开始分析") and "data_mining_data" in st.session_state:
     df = st.session_state.data_mining_data
     results = {}
 
@@ -530,15 +537,8 @@ if "data_mining_results" in st.session_state:
                     cluster_profile = df.groupby(result_df['Cluster']).mean()
                     cluster_profile.to_excel(writer, sheet_name='聚类中心特征')
 
-            st.download_button(
-                label="下载完整分析结果",
-                data=excel_buffer.getvalue(),
-                file_name=f"{method}_分析结果.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
             # 显示精简结果
-            st.subheader("核心指标")
+            st.subheader("⭐ 核心指标")
             if method == "Kappa系数":
                 st.metric(label="Kappa系数", value=f"{result_df.iloc[0, 0]:.3f}")
             elif method in ["皮尔逊相关系数", "斯皮尔曼相关系数"] and len(selected_features) == 2:
@@ -546,3 +546,9 @@ if "data_mining_results" in st.session_state:
                 st.metric(label="P值", value=f"{result_df.iloc[0, 1]:.4f}")
             else:
                 st.dataframe(result_df)
+            st.download_button(
+                label="⬇️ 下载完整分析结果",
+                data=excel_buffer.getvalue(),
+                file_name=f"{method}_分析结果.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )

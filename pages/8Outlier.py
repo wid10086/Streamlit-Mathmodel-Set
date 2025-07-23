@@ -305,7 +305,7 @@ def autoregressive_smoothing(data, p=3, alpha=0.9):
 
 # 配置页面
 st.set_page_config(layout="wide", page_title="数据预处理分析平台")
-st.title("数据预处理/异常值处理")
+st.title("🧹数据预处理/异常值处理")
 
 # ================= 会话状态初始化 =================
 if 'outlier_data' not in st.session_state:
@@ -315,18 +315,23 @@ if 'outlier_processed' not in st.session_state:
 
 # ================= 数据配置模块 =================
 with st.expander("📊 数据配置", expanded=True):
-    data_col1, data_col2 = st.columns([1, 2])
+    # 处理方法类型选择，两个数据源都可用
+    method_type = st.selectbox("🛠️ 选择处理方法类型", ["异常值检测", "插值处理", "数据平滑"], key="outlier_method_type")
 
-    with data_col1:
-        st.subheader("示例数据生成")
-        method_type = st.selectbox("选择处理方法类型", ["异常值检测", "插值处理", "数据平滑"])
+    data_source = st.radio(
+        "🗂️ 请选择数据来源",
+        options=["生成示例数据", "上传自定义数据"],
+        horizontal=True,
+        key="outlier_data_source_radio"
+    )
 
-        # 通用参数配置
-        n_samples = st.number_input("样本数量", 50, 1000, 200)
-        n_features = st.number_input("特征数量", 1, 10, 3)
-        add_noise = st.checkbox("添加噪声")
+    if data_source == "生成示例数据":
+        st.subheader("✨ 示例数据生成")
+        x1, x2 = st.columns(2)
+        n_samples = x1.number_input("🔢 样本数量", 50, 1000, 200, key="outlier_n_samples")
+        n_features = x2.number_input("🔣 特征数量", 1, 10, 3, key="outlier_n_features")
+        add_noise = st.checkbox("🌪️ 添加噪声", key="outlier_add_noise")
 
-        # 根据方法类型生成不同示例数据
         np.random.seed(42)
         X = np.random.randn(n_samples, n_features)
         time_axis = np.linspace(0, 10, n_samples)  # 时间轴用于插值和平滑
@@ -334,31 +339,28 @@ with st.expander("📊 数据配置", expanded=True):
         if method_type == "异常值检测":
             outlier_idx = np.random.choice(n_samples, size=5, replace=False)
             X[outlier_idx] += 10  # 添加异常值
-
+            columns = [f"特征_{i}" for i in range(n_features)]
         elif method_type == "插值处理":
-            # 生成带时间维度的数据
             X = np.column_stack([time_axis] + [np.sin(time_axis + i) for i in range(n_features - 1)])
-
+            columns = ["时间"] + [f"信号_{i}" for i in range(n_features - 1)]
         else:  # 数据平滑
-            # 生成带噪声的信号数据
             X = np.column_stack([time_axis] + [
                 np.sin(time_axis * (i + 1)) + np.random.normal(0, 0.5, n_samples)
                 for i in range(n_features - 1)
             ])
+            columns = ["时间"] + [f"信号_{i}" for i in range(n_features - 1)]
 
         if add_noise:
             X += np.random.normal(0, 0.3, X.shape)
 
-        if st.button("生成示例数据（不同方法的示例数据可能不同）"):
-            columns = ["时间"] + [f"信号_{i}" for i in range(n_features - 1)] if method_type != "异常值检测" \
-                else [f"特征_{i}" for i in range(n_features)]
+        if st.button("🚀 生成示例数据（不同方法的示例数据可能不同）", key="outlier_generate_example"):
             df = pd.DataFrame(X, columns=columns)
             st.session_state.outlier_data = df
-            st.success("示例数据生成成功！")
+            st.success("✅ 示例数据生成成功！")
 
-    with data_col2:
-        st.subheader("上传自定义数据")
-        uploaded_file = st.file_uploader("选择CSV/Excel文件", type=["csv", "xlsx"])
+    elif data_source == "上传自定义数据":
+        st.subheader("📤 上传自定义数据")
+        uploaded_file = st.file_uploader("📎 选择CSV/Excel文件", type=["csv", "xlsx"], key="outlier_upload")
         if uploaded_file:
             try:
                 if uploaded_file.name.endswith('.csv'):
@@ -366,17 +368,19 @@ with st.expander("📊 数据配置", expanded=True):
                 else:
                     df = pd.read_excel(uploaded_file)
                 st.session_state.outlier_data = df
-                st.success("数据加载成功！")
+                st.success("✅ 数据加载成功！")
             except Exception as e:
-                st.error(f"数据加载错误: {str(e)}")
+                st.error(f"❌ 数据加载错误: {str(e)}")
 
 # ================= 数据预览 =================
-if st.session_state.outlier_data is not None:
-    with st.expander("🔍 数据预览", expanded=True):
-        df = st.session_state.outlier_data
-        cols = st.columns([3, 1])
-        cols[0].dataframe(df.style.highlight_null(color='yellow'), height=300)
-        cols[1].markdown(f"**数据维度**: {df.shape}")
+with st.expander("🔍 数据预览", expanded=False):
+    if st.session_state.outlier_data is None:
+        st.warning("⚠️ 请先生成或上传数据")
+        st.stop()
+    df = st.session_state.outlier_data
+    cols = st.columns([3, 1])
+    cols[0].dataframe(df.style.highlight_null(color='yellow'), height=300)
+    cols[1].markdown(f"**📐 数据维度**: {df.shape}")
 
 # ================= 方法选择与参数配置 =================
 method_params = {}
@@ -390,56 +394,56 @@ if st.session_state.outlier_data is not None:
         base_feature = "时间" if method_type != "异常值检测" else None
 
         selected_features = st.multiselect(
-            "选择处理特征（多选）",
+            "🔬 选择处理特征（多选）",
             available_features,
             default=[f for f in available_features if f != "时间"]
         )
 
         # 方法选择
         if method_type == "异常值检测":
-            method = st.selectbox("选择检测方法", [
+            method = st.selectbox("🧭 选择检测方法", [
                 "标准差法", "IQR法", "Z分数法",
                 "DBSCAN", "K-means", "孤立森林", "One-Class SVM"
             ])
-            st.text("后四种方法建议多特征同时处理")
+            st.text("💡 后四种方法建议多特征同时处理")
 
             if method in ["标准差法", "IQR法", "Z分数法"]:
-                method_params["threshold"] = st.slider("异常阈值", 1.0, 5.0, 3.0)
+                method_params["threshold"] = st.slider("🎚️ 异常阈值", 1.0, 5.0, 3.0)
             elif method == "DBSCAN":
-                method_params["eps"] = st.slider("邻域半径", 0.1, 2.0, 0.5)
-                method_params["min_samples"] = st.number_input("最小样本数", 2, 20, 5)
+                method_params["eps"] = st.slider("📏 邻域半径", 0.1, 2.0, 0.5)
+                method_params["min_samples"] = st.number_input("👥 最小样本数", 2, 20, 5)
             elif method == "K-means":
-                method_params["n_clusters"] = st.number_input("聚类数量", 2, 10, 3)
-                method_params["threshold"] = st.slider("距离阈值", 1.0, 5.0, 2.0)
+                method_params["n_clusters"] = st.number_input("🔗 聚类数量", 2, 10, 3)
+                method_params["threshold"] = st.slider("📐 距离阈值", 1.0, 5.0, 2.0)
 
         elif method_type == "插值处理":
-            method = st.selectbox("选择插值方法", [
+            method = st.selectbox("🧩 选择插值方法", [
                 "线性插值", "多项式插值", "样条插值",
                 "最近邻插值", "RBF插值", "傅里叶插值"
             ])
             if method == "多项式插值":
-                method_params["degree"] = st.number_input("多项式次数", 1, 5, 3)
+                method_params["degree"] = st.number_input("🔢 多项式次数", 1, 5, 3)
             elif method == "样条插值":
-                method_params["k"] = st.number_input("样条阶数", 1, 5, 3)
+                method_params["k"] = st.number_input("🔢 样条阶数", 1, 5, 3)
             elif method == "RBF插值":
-                method_params["function"] = st.selectbox("核函数", [
+                method_params["function"] = st.selectbox("🔗 核函数", [
                     "multiquadric", "gaussian", "inverse", "linear"
                 ])
 
         else:  # 数据平滑
-            method = st.selectbox("选择平滑方法", [
+            method = st.selectbox("🧹 选择平滑方法", [
                 "中值滤波", "均值滤波", "低通滤波",
                 "卡尔曼滤波", "自回归平滑"
             ])
             if method == "中值滤波":
-                method_params["window_size"] = st.slider("窗口大小", 3, 15, 5, step=2)
+                method_params["window_size"] = st.slider("📏 窗口大小", 3, 15, 5, step=2)
             elif method == "低通滤波":
-                method_params["cutoff_freq"] = st.slider("截止频率", 0.01, 0.5, 0.1)
+                method_params["cutoff_freq"] = st.slider("🎚️ 截止频率", 0.01, 0.5, 0.1)
             elif method == "自回归平滑":
-                method_params["p"] = st.number_input("回归阶数", 1, 10, 3)
+                method_params["p"] = st.number_input("🔢 回归阶数", 1, 10, 3)
 
 # ================= 执行处理 =================
-if st.button("开始处理") and st.session_state.outlier_data is not None:
+if st.button("⚡ 开始处理") and st.session_state.outlier_data is not None:
     df = st.session_state.outlier_data
     processed_data = df.copy()
 
@@ -530,10 +534,10 @@ if st.button("开始处理") and st.session_state.outlier_data is not None:
                     processed_data[feature] = smoothed
 
         st.session_state.outlier_processed = processed_data
-        st.success("处理完成！")
+        st.success("🎉 处理完成！")
 
     except Exception as e:
-        st.error(f"处理失败: {str(e)}")
+        st.error(f"❌ 处理失败: {str(e)}")
 
 # ================= 结果展示 =================
 if st.session_state.outlier_processed is not None:
@@ -541,8 +545,8 @@ if st.session_state.outlier_processed is not None:
         col1, col2 = st.columns([3, 1])
 
         with col1:
-            st.subheader("数据对比")
-            show_original = st.checkbox("显示原始数据")
+            st.subheader("📊 数据对比")
+            show_original = st.checkbox("👁️ 显示原始数据")
 
             for feature in selected_features:
                 df_plot = pd.DataFrame({
@@ -551,18 +555,18 @@ if st.session_state.outlier_processed is not None:
                 })
                 if not show_original:
                     df_plot = df_plot.drop(columns=["原始数据"])
-                st.text(feature)
+                st.text(f"🔬 {feature}")
                 st.line_chart(df_plot, height=200)
 
         with col2:
-            st.subheader("数据下载")
+            st.subheader("💾 数据下载")
             st.session_state.outlier_processed
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 st.session_state.outlier_processed.to_excel(writer, index=False)
 
             st.download_button(
-                label="下载处理结果",
+                label="⬇️ 下载处理结果",
                 data=excel_buffer.getvalue(),
                 file_name="processed_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

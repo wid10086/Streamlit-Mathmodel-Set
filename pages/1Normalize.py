@@ -128,56 +128,70 @@ def generate_example_data(n_samples, n_features, add_noise=False, add_outliers=F
 
 
 # 页面布局设置
-#st.set_page_config(layout="wide")
-st.title("数据归一化/标准化")
+st.set_page_config(layout="wide")
+st.title("🧮 数据归一化/标准化")
 
 # ================= 数据输入部分 =================
-with st.expander("数据配置", expanded=True):
-    col1, col2 = st.columns([3, 2])
+with st.expander("📊 数据配置", expanded=True):
+    data_source = st.radio(
+        "请选择数据来源",
+        options=["生成示例数据","自定义数据"],
+        horizontal=True
+    )
 
-    with col1:
-        st.subheader("上传自定义数据")
+    uploaded_file = None
+    sheet_name = "Sheet1"
+    example_data = None
+
+    if data_source == "自定义数据":
+        st.subheader("📤 上传自定义数据")
         with st.form("you_config"):
             uploaded_file = st.file_uploader("上传Excel文件", type=["xlsx", "xls"],
-                                         help="每行一个样本，每列一个特征")
+                                             help="每行一个样本，每列一个特征")
             sheet_name = st.text_input("请输入工作表名称或索引，默认值为“Sheet1”", value="Sheet1")
-            if st.form_submit_button("上传数据"):
-                try:
-                    st.text(f"uploaded_file：{uploaded_file.name}，sheet_name：{sheet_name}")
-                except Exception as e:
-                    st.error(f"报错: {str(e)}")
+            submit_upload = st.form_submit_button("上传数据")
+            if submit_upload:
+                if uploaded_file is not None:
+                    try:
+                        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+                        st.session_state.normalize_current_data = df.values
+                        st.session_state.normalize_data_source = "uploaded"
+                        st.success("数据上传成功！")
+                    except Exception as e:
+                        st.error(f"文件读取错误: {str(e)}")
+                else:
+                    st.warning("请先上传文件。")
 
-    with col2:
-        st.subheader("生成示例数据")
+    elif data_source == "生成示例数据":
+        st.subheader("✨ 生成示例数据")
         with st.form("example_config"):
-            n_samples = st.number_input("样本数量", min_value=3, value=50)
-            n_features = st.number_input("特征数量", min_value=1, value=5)
-            add_noise = st.checkbox("添加噪声")
-            add_outliers = st.checkbox("添加离群点")
-            if st.form_submit_button("生成数据"):
+            a1, a2 = st.columns(2)
+            n_samples = a1.number_input("样本数量", min_value=3, value=50)
+            n_features = a2.number_input("特征数量", min_value=1, value=5)
+            add_noise = a1.checkbox("添加噪声")
+            add_outliers = a2.checkbox("添加离群点")
+            submit_example = st.form_submit_button("生成数据")
+            if submit_example:
                 example_data = generate_example_data(n_samples, n_features, add_noise, add_outliers)
                 st.session_state.normalize_current_data = example_data
                 st.session_state.normalize_data_source = "example"
+                st.success("示例数据生成成功！")
 
-# 加载数据
-if uploaded_file:
-    try:
-        df = pd.read_excel(uploaded_file,sheet_name = sheet_name)
-        st.session_state.normalize_current_data = df.values
-        st.session_state.normalize_data_source = "uploaded"
-    except Exception as e:
-        st.error(f"文件读取错误: {str(e)}")
-elif 'normalize_current_data' not in st.session_state:
-    # 初始化默认数据
+# 数据初始化和回显
+if "normalize_current_data" not in st.session_state:
+    # 默认初始化为示例数据
     st.session_state.normalize_current_data = generate_example_data(50, 5)
     st.session_state.normalize_data_source = "example"
 
 # 显示当前数据
-st.subheader("当前数据预览")
-with st.expander(f"当前数据", expanded=True):
+st.subheader("👀 当前数据预览")
+with st.expander("📋 当前数据"):
     if st.session_state.normalize_data_source == "uploaded":
-        preview_df = df
-        st.dataframe(df)
+        preview_df = pd.DataFrame(
+            st.session_state.normalize_current_data,
+            columns=None
+        )
+        st.dataframe(preview_df)
     else:
         preview_df = pd.DataFrame(
             st.session_state.normalize_current_data,
@@ -187,10 +201,9 @@ with st.expander(f"当前数据", expanded=True):
 
 # ================= 归一化配置部分 =================
 st.markdown("---")
-col1, col2 = st.columns([2, 3])
-
+st.subheader("⚙️ 归一化配置")
+col1, col2 = st.columns([1,1])
 with col1:
-    st.subheader("归一化配置")
     methods = {
         "最小-最大归一化": {"func": min_max_normalize, "params": {"feature_range": (0, 1)}},
         "Z-Score标准化": {"func": z_score_normalize},
@@ -202,11 +215,11 @@ with col1:
     }
 
     selected_methods = st.multiselect(
-        "选择归一化方法",
+        "📝 选择归一化方法",
         options=list(methods.keys()),
         default=["最小-最大归一化", "Z-Score标准化"]
     )
-
+with col2:
     # 动态参数配置
     method_params = {}
     for method in selected_methods:
@@ -223,59 +236,58 @@ with col1:
                 method_params[method] = {"base": base}
 
 # ================= 可视化部分 =================
-with col2:
-    st.subheader("可视化结果")
+st.markdown("---")
+st.subheader("📈 可视化结果")
 
-    if st.button("运行归一化"):
-        data = st.session_state.normalize_current_data
-        results = {"原始数据": data}
+if st.button("🚀 运行归一化"):
+    data = st.session_state.normalize_current_data
+    results = {"原始数据": data}
 
-        for method in selected_methods:
-            try:
-                params = method_params.get(method, {})
-                if method == "Softmax归一化":
-                    normalized = methods[method]["func"](data, axis=0)
-                else:
-                    normalized = methods[method]["func"](data, **params)
-                results[method] = normalized
-            except Exception as e:
-                st.error(f"{method}执行失败: {str(e)}")
+    for method in selected_methods:
+        try:
+            params = method_params.get(method, {})
+            if method == "Softmax归一化":
+                normalized = methods[method]["func"](data, axis=0)
+            else:
+                normalized = methods[method]["func"](data, **params)
+            results[method] = normalized
+        except Exception as e:
+            st.error(f"{method}执行失败: {str(e)}")
 
-        st.session_state.normalize_results = results
+    st.session_state.normalize_results = results
 
-    if 'normalize_results' in st.session_state:
-        feature_names = preview_df.columns.tolist()
-        selected_feature = st.selectbox("选择要可视化的特征", feature_names)
-        feature_idx = feature_names.index(selected_feature)
+if 'normalize_results' in st.session_state:
+    feature_names = preview_df.columns.tolist()
+    selected_feature = st.selectbox("🔎 选择要可视化的特征", feature_names)
+    feature_idx = feature_names.index(selected_feature)
 
-        # 添加原始数据显示开关
-        show_raw = st.checkbox("显示原始数据", value=True, key='show_raw_data')
+    # 添加原始数据显示开关
+    show_raw = st.checkbox("显示原始数据", value=True, key='show_raw_data')
 
-        # 准备数据
-        chart_data = {}
-        for method, data in st.session_state.normalize_results.items():
-            if method == "原始数据" and not show_raw:
-                continue
-            chart_data[method] = data[:, feature_idx]
+    # 准备数据
+    chart_data = {}
+    for method, data in st.session_state.normalize_results.items():
+        if method == "原始数据" and not show_raw:
+            continue
+        chart_data[method] = data[:, feature_idx]
 
-        # 转换为DataFrame
-        chart_df = pd.DataFrame(chart_data)
-        chart_df.index.name = "样本索引"
+    # 转换为DataFrame
+    chart_df = pd.DataFrame(chart_data)
+    chart_df.index.name = "样本索引"
 
-        # 使用Streamlit内置折线图
-        st.line_chart(chart_df, use_container_width=True)
+    # 使用Streamlit内置折线图
+    st.line_chart(chart_df, use_container_width=True)
 
 # ================= 结果导出部分 =================
 st.markdown("---")
 if 'normalize_results' in st.session_state:
-    st.subheader("结果导出")
-    cols = st.columns(len(st.session_state.normalize_results))
+    st.subheader("📥 结果导出")
+    result_methods = [m for m in st.session_state.normalize_results if m != "原始数据"]
+    cols = st.columns(len(result_methods))
 
-    for idx, (method, data) in enumerate(st.session_state.normalize_results.items()):
-        if method == "原始数据":
-            continue
-
-        with cols[idx - 1]:
+    for idx, method in enumerate(result_methods):
+        data = st.session_state.normalize_results[method]
+        with cols[idx]:
             df_result = pd.DataFrame(data, columns=feature_names)
             # 生成Excel字节流
             excel_buffer = BytesIO()
@@ -283,12 +295,12 @@ if 'normalize_results' in st.session_state:
                 df_result.to_excel(writer, index=False, sheet_name='Result')
             excel_bytes = excel_buffer.getvalue()
             st.download_button(
-                label=f"下载 {method} 结果",
+                label=f"⬇️ 下载 {method} 结果",
                 data=excel_bytes,
                 file_name=f"{method}_result.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"btn_{method}"
             )
 
-            if st.checkbox(f"显示{method}结果", key=f"cb_{method}"):
+            if st.checkbox(f"👁️ 显示{method}结果", key=f"cb_{method}"):
                 st.dataframe(df_result)

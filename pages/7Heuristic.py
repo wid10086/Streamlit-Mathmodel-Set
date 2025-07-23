@@ -84,11 +84,11 @@ def ant_colony_optimization(distance_matrix, n_ants=10, n_iterations=100, alpha=
 
 # ================= 算法选择与参数配置 =================
 st.set_page_config(layout="wide")
-st.title("启发式算法")
+st.title("🧠 启发式算法")
 
 # ================= 问题配置 =================
-with st.expander("问题配置", expanded=True):
-    problem_type = st.radio("问题类型", ["函数优化", "TSP问题"], key="heuristic_problem_type")
+with st.expander("⚙️ 问题配置", expanded=False):
+    problem_type = st.radio("🧩 问题类型", ["函数优化", "TSP问题"], key="heuristic_problem_type")
 
 # 动态算法选择
 if problem_type == "TSP问题":
@@ -97,13 +97,13 @@ else:
     algorithm_options = ["遗传算法", "差分进化算法", "粒子群优化", "模拟退火算法"]
 
 heuristic_method = st.selectbox(
-    "选择优化算法",
+    "🧮 选择优化算法",
     algorithm_options,
     key="heuristic_method"
 )
 
 # ================= 动态参数输入 =================
-with st.expander("算法参数配置", expanded=True):
+with st.expander("🛠️ 算法参数配置", expanded=True):
     col1, col2 = st.columns(2)
 
     # 公共参数
@@ -139,11 +139,11 @@ with st.expander("算法参数配置", expanded=True):
             beta = st.slider("启发式权重β", 0.1, 5.0, 2.0, key="heuristic_aco_beta")
 
 # ================= 问题配置 =================
-with st.expander("问题配置", expanded=True):
+with st.expander("⚙️ 问题配置", expanded=True):
     #problem_type = st.radio("问题类型", ["函数优化", "TSP问题"], key="heuristic_problem_type")
 
     if problem_type == "函数优化":
-        func_input = st.text_area("目标函数（使用x[0],x[1]...格式，求最小值）",
+        func_input = st.text_area("📝 目标函数（使用x[0],x[1]...格式，求最小值）",
                                   value="sum(xi**2 for xi in x)",
                                   help="示例：sum((x[i]-i)**2 for i in range(len(x)))")
 
@@ -159,45 +159,66 @@ with st.expander("问题配置", expanded=True):
 
 
     elif problem_type == "TSP问题":
-        num_cities = st.number_input("城市数量", 3, 50, 4, key="heuristic_tsp_cities")
+        num_cities = st.number_input("🏙️ 城市数量", 3, 50, 4, key="heuristic_tsp_cities")
 
-        # 新的矩阵文本输入
-        distance_text = st.text_area(
-            "距离矩阵（需为对称矩阵，每行用空格分隔，INF表示无路径）",
-            height=200,
-            value="0 INF 5 8\nINF 0 3 7\n5 3 0 INF\n8 7 INF 0",
-            help="示例（含不可达路径）：\n0 INF 5 8\nINF 0 3 7\n5 3 0 INF\n8 7 INF 0"
+        st.markdown("#### 🗺️ 步骤1：输入城市坐标")
+        # 城市坐标输入表格
+        default_coords = np.array([[i * 10, i * 10] for i in range(num_cities)])
+        coords_df = pd.DataFrame(
+            default_coords,
+            columns=["x", "y"],
+            index=[f"城市{i}" for i in range(num_cities)]
+        )
+        coords_df = st.data_editor(
+            coords_df,
+            key="tsp_coords_editor",
+            num_rows="fixed",
+            use_container_width=True
+        )
+        coords = coords_df.values
+
+        # 自动生成距离矩阵
+        dist_matrix = np.zeros((num_cities, num_cities))
+        for i in range(num_cities):
+            for j in range(num_cities):
+                if i == j:
+                    dist_matrix[i, j] = 0
+                else:
+                    dist_matrix[i, j] = np.linalg.norm(coords[i] - coords[j])
+
+        st.markdown("#### 🗺️ 步骤2：可编辑距离矩阵（留空表示无直接路径）")
+        dist_matrix_df = pd.DataFrame(
+            dist_matrix,
+            index=[f"城市{i}" for i in range(num_cities)],
+            columns=[f"城市{i}" for i in range(num_cities)]
+        )
+        # 允许用户编辑，空值表示无路径
+        edited_dist_df = st.data_editor(
+            dist_matrix_df,
+            key="tsp_dist_matrix_editor",
+            num_rows="fixed",
+            use_container_width=True
         )
 
-        # 解析文本为矩阵
-        if distance_text:
-            try:
-                lines = [line.strip() for line in distance_text.split('\n') if line.strip()]
-                num_lines = len(lines)
-                if num_lines != num_cities:
-                    st.error(f"输入行数({num_lines})与城市数量({num_cities})不匹配！")
-                    st.stop()
+        # 解析用户编辑后的距离矩阵
+        distance_matrix = np.full((num_cities, num_cities), 1e10)
+        for i in range(num_cities):
+            for j in range(num_cities):
+                val = edited_dist_df.iloc[i, j]
+                if pd.isna(val) or val == "":
+                    distance_matrix[i, j] = 1e10  # 无路径
+                else:
+                    distance_matrix[i, j] = float(val)
+        np.fill_diagonal(distance_matrix, 0)
+        distance_matrix = np.minimum(distance_matrix, distance_matrix.T)  # 保持对称
+        st.session_state.heuristic_tsp_matrix = distance_matrix
 
-                distance_matrix = np.full((num_cities, num_cities), 1e10)  # 默认不可达
-                for i, line in enumerate(lines):
-                    parts = line.split()
-                    for j, val in enumerate(parts[:num_cities]):
-                        if val.upper() == 'INF':
-                            distance_matrix[i][j] = 1e10  # 表示极大距离
-                        else:
-                            distance_matrix[i][j] = float(val)
-
-                # 确保矩阵对称性和对角线为0
-                np.fill_diagonal(distance_matrix, 0)
-                distance_matrix = np.maximum(distance_matrix, distance_matrix.T)
-                st.session_state.heuristic_tsp_matrix = distance_matrix
-
-            except Exception as e:
-                st.error(f"矩阵解析错误: {str(e)}")
-                st.stop()
+        # 可选：展示最终用于计算的距离矩阵
+        if st.checkbox("👁️ 显示最终距离矩阵（用于计算）", value=False):
+            st.dataframe(pd.DataFrame(distance_matrix, index=[f"城市{i}" for i in range(num_cities)], columns=[f"城市{i}" for i in range(num_cities)]))
 
 # ================= 算法执行 =================
-if st.button("开始优化", type="primary"):
+if st.button("🚀 开始优化", type="primary"):
     # 验证算法与问题类型匹配
     if (problem_type == "TSP问题" and heuristic_method != "蚁群算法(TSP)") or \
             (problem_type == "函数优化" and heuristic_method == "蚁群算法(TSP)"):
@@ -278,7 +299,7 @@ if st.button("开始优化", type="primary"):
 # ================= 结果展示 =================
 if "heuristic_result" in st.session_state:
     result = st.session_state.heuristic_result
-    st.subheader("优化结果")
+    st.subheader("🏆 优化结果")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -321,14 +342,14 @@ if "heuristic_result" in st.session_state:
         output.seek(0)
 
         st.download_button(
-            label="下载结果（Excel）",
+            label="⬇️ 下载结果（Excel）",
             data=output,
             file_name=f"{heuristic_method}_result.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
 # ================= 示例说明 =================
-with st.expander("示例配置指南", expanded=False):
+with st.expander("💡 示例配置指南", expanded=False):
     st.markdown("""
     **函数优化示例**：
     ```python
@@ -338,12 +359,4 @@ with st.expander("示例配置指南", expanded=False):
     x[0] ∈ [-5.12, 5.12], x[1] ∈ [-5.12, 5.12]
     ```
 
-    **TSP问题示例**：
-    ```python
-    # 距离矩阵示例（4个城市）
-    0 INF 5 8    # 1号城市无法直达2号
-    INF 0 3 7    # 2号城市无法直达1号
-    5 3 0 INF    # 3号城市无法直达4号
-    8 7 INF 0    # 4号城市无法直达3号
-    ```
     """)

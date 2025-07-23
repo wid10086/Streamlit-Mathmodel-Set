@@ -159,43 +159,53 @@ def generate_example_data(n_samples, n_features_X, n_features_y, add_noise=False
 
 # ================= 页面布局 =================
 st.set_page_config(layout="wide")
-st.title("多元回归/拟合")
+st.title("📈 多元回归/拟合")
 
 # ================= 数据配置 =================
-with st.expander("数据配置", expanded=True):
-    data_col1, data_col2 = st.columns([1, 2])
+with st.expander("📊 数据配置", expanded=True):
+    data_source = st.radio(
+        "请选择数据来源",
+        options=["生成示例数据", "上传自定义数据"],
+        horizontal=True,
+        key="regression_data_source_radio"
+    )
 
-    with data_col1:
-        st.subheader("示例数据设置")
-        n_samples = st.number_input("样本数量", 3, 1000, 50)
-        n_features_X = st.number_input("自变量特征数", 1, 20, 5, key="n_features_X")
-        n_features_y = st.number_input("因变量特征数", 1, 10, 1, key="n_features_y")  # 新增参数
-        add_noise = st.checkbox("添加噪声")
-        add_outliers = st.checkbox("添加离群点")
+    if data_source == "生成示例数据":
+        st.subheader("✨ 示例数据设置")
+        with st.form("regression_example_config"):
+            a1, a2, a3 = st.columns(3)
+            n_samples = a1.number_input("样本数量", 3, 1000, 50, key="n_samples")
+            n_features_X = a2.number_input("自变量特征数", 1, 20, 5, key="n_features_X")
+            n_features_y = a3.number_input("因变量特征数", 1, 10, 1, key="n_features_y")
+            x1, x2 = st.columns(2)
+            add_noise = x1.checkbox("添加噪声", key="add_noise")
+            add_outliers = x2.checkbox("添加离群点", key="add_outliers")
+            submit_example = st.form_submit_button("生成示例数据")
+            if submit_example:
+                X_train, y_train, X_pred, y_true = generate_example_data(
+                    n_samples, n_features_X, n_features_y, add_noise, add_outliers
+                )
+                st.session_state.update({
+                    "regression_X_train": X_train, "regression_y_train": y_train,
+                    "regression_X_pred": X_pred, "regression_y_true": y_true,
+                    "regression_use_example": True
+                })
+                st.success("示例数据生成成功！")
 
-        if st.button("生成示例数据"):
-            X_train, y_train, X_pred, y_true = generate_example_data(
-                n_samples, n_features_X, n_features_y, add_noise, add_outliers  # 传入新参数
-            )
-            st.session_state.update({
-                "regression_X_train": X_train, "regression_y_train": y_train,
-                "regression_X_pred": X_pred, "regression_y_true": y_true,
-                "regression_use_example": True
-            })
-
-    with data_col2:
-        st.subheader("上传自定义数据")
+    elif data_source == "上传自定义数据":
+        st.subheader("📤 上传自定义数据")
         uploaded_file = []
-        data = []
         sheet_name = []
-        x = ["X_train","y_train","X_pred","y_true(可选)"]
-        with st.form("待拟合文件上传"):
+        x = ["X_train", "y_train", "X_pred", "y_true(可选)"]
+        with st.form("regression_upload_form"):
             for i in range(4):
-                row = st.columns([3,1])
-                uploaded_file.append(row[0].file_uploader(f"上传 {x[i]} 数据文件（Excel）", type=["xlsx", "xls"]))
-                sheet_name.append(row[1].text_input(f"{x[i]} 工作表名（Excel）", value="Sheet1"))
-            if st.form_submit_button("文件上传"):
-                if uploaded_file:
+                row = st.columns([3, 1])
+                uploaded_file.append(row[0].file_uploader(f"上传 {x[i]} 数据文件（Excel）", type=["xlsx", "xls"], key=f"upload_{i}")
+                )
+                sheet_name.append(row[1].text_input(f"{x[i]} 工作表名（Excel）", value="Sheet1", key=f"sheet_{i}"))
+            submit_upload = st.form_submit_button("文件上传")
+            if submit_upload:
+                if uploaded_file[0] and uploaded_file[1] and uploaded_file[2]:
                     try:
                         X_train = pd.read_excel(uploaded_file[0], sheet_name=sheet_name[0])
                         y_train = pd.read_excel(uploaded_file[1], sheet_name=sheet_name[1])
@@ -212,15 +222,26 @@ with st.expander("数据配置", expanded=True):
                         st.success("数据加载成功!")
                     except Exception as e:
                         st.error(f"数据加载失败: {str(e)}")
+                else:
+                    st.warning("请上传 X_train、y_train 和 X_pred 文件（y_true 可选）")
+
+# 数据初始化（如无数据则默认生成示例数据）
+if "regression_X_train" not in st.session_state or "regression_y_train" not in st.session_state or "regression_X_pred" not in st.session_state:
+    X_train, y_train, X_pred, y_true = generate_example_data(50, 5, 1)
+    st.session_state.update({
+        "regression_X_train": X_train, "regression_y_train": y_train,
+        "regression_X_pred": X_pred, "regression_y_true": y_true,
+        "regression_use_example": True
+    })
 
 # ================= 数据预览 =================
-with st.expander("数据预览", expanded=True):
+with st.expander("👀 数据预览"):
     if "regression_X_train" not in st.session_state:
         st.warning("请先生成或上传数据")
         st.stop()
     cols = st.columns(2)
     with cols[0]:
-        st.subheader("训练数据")
+        st.subheader("📝 训练数据")
         st.write(f"自变量维度: {st.session_state.regression_X_train.shape}")
         st.write(f"因变量维度: {st.session_state.regression_y_train.shape}")
         if st.session_state.regression_use_example:
@@ -238,9 +259,10 @@ with st.expander("数据预览", expanded=True):
             df_y_train = st.session_state.regression_y_train
             st.dataframe(st.session_state.regression_y_train)
     with cols[1]:
-        st.subheader("预测数据")
+        st.subheader("🔮 预测数据")
         st.write(f"自变量维度: {st.session_state.regression_X_pred.shape}")
-        if st.session_state.regression_y_true is not None: st.write(f"真实值维度: {st.session_state.regression_y_true.shape}")
+        if st.session_state.regression_y_true is not None: 
+            st.write(f"真实值维度: {st.session_state.regression_y_true.shape}")
         if st.session_state.regression_use_example:
             st.dataframe(pd.DataFrame(
                 st.session_state.regression_X_pred,
@@ -254,9 +276,9 @@ with st.expander("数据预览", expanded=True):
             st.dataframe(st.session_state.regression_X_pred)
             st.dataframe(st.session_state.regression_y_true)
 
-# ================= 方法配置 =================
+# ================= 方法配置与参数配置 =================
 st.markdown("---")
-col1, col2 = st.columns([3, 2])
+st.subheader("⚙️ 拟合方法与参数配置")
 methods = {
     "线性拟合": {"func": linear_fit, "params": {}},
     "岭回归": {"func": ridge_regression, "params": {"alpha": 1.0}},
@@ -267,220 +289,180 @@ methods = {
         "basis_func_type": "polynomial", "degree": 2, "interaction_only": False}}
 }
 
-with col1:
-    st.subheader("参数配置")
+selected_methods = st.multiselect(
+    "🧩 选择拟合方法（可多选）",
+    options=list(methods.keys()),
+    default=["线性拟合", "岭回归"]
+)
 
-    selected_methods = col1.multiselect(
-        "选择拟合方法（可多选）",
-        options=list(methods.keys()),
-        default=["线性拟合", "岭回归"]
-    )
 
-    # 动态参数配置
-    method_params = {}
+method_params = {}
+for method in selected_methods:
+    if method == "岭回归":
+        with st.expander(f"{method}参数配置"):
+            alpha = st.number_input("岭回归 正则化强度 (alpha)", 0.0, 100.0, 1.0, key=f"{method}_alpha")
+            method_params[method] = {"alpha": alpha}
+    elif method == "核岭回归":
+        with st.expander(f"{method}参数配置"):
+            cols = st.columns(2)
+            kernel = cols[0].selectbox("核岭回归 核函数", ["rbf", "linear", "poly"], key=f"{method}_kernel")
+            gamma = cols[1].number_input("核岭回归 Gamma值", 0.0, 10.0, 1.0, key=f"{method}_gamma")
+            method_params[method] = {"kernel": kernel, "gamma": gamma, "alpha": 1.0}
+    elif method == "ELM拟合":
+        with st.expander(f"{method}参数配置"):
+            cols = st.columns(2)
+            hidden_units = cols[0].number_input("ELM拟合 隐藏层单元数", 1, 500, 10, key=f"{method}_units")
+            activation_func = cols[1].selectbox("ELM拟合 激活函数", ["sigmoid", "relu", "tanh"], key=f"{method}_act")
+            method_params[method] = {"hidden_units": hidden_units, "activation_func": activation_func}
+    elif method == "非线性拟合":
+        with st.expander(f"{method}参数配置"):
+            cols = st.columns(3)
+            basis_func_type = cols[0].selectbox("非线性拟合 基函数类型", ["polynomial", "interaction", "rbf"], key=f"{method}_basis")
+            degree = cols[1].number_input("非线性拟合 多项式次数", 1, 10, 2, key=f"{method}_degree")
+            interaction_only = cols[2].checkbox("非线性拟合 仅交互项", key=f"{method}_interaction")
+            method_params[method] = {"basis_func_type": basis_func_type, "degree": degree, "interaction_only": interaction_only}
+
+# ================= 拟合执行部分 =================
+st.markdown("---")
+st.subheader("🚀 拟合与评估")
+run_fit = st.button("🚀 运行拟合")
+
+judge = {}
+if run_fit:
+    if "regression_X_train" not in st.session_state:
+        st.warning("请先生成或上传数据")
+        st.stop()
+    results = {}
     for method in selected_methods:
-        with col1.expander(f"{method}参数配置", expanded=True):
-            if method == "岭回归":
-                method_params[method] = {
-                    "alpha": col1.number_input("岭回归 正则化强度 (alpha)", 0.0, 100.0, 1.0, key=f"{method}_alpha")
-                }
+        try:
+            params = method_params.get(method, {})
+            if method == "线性拟合":
+                if st.session_state.regression_use_example:
+                    coefficients, intercept, y_pred = linear_fit(
+                        st.session_state.regression_X_train, st.session_state.regression_y_train,
+                        st.session_state.regression_X_pred
+                    )
+                else:
+                    coefficients, intercept, y_pred = linear_fit(
+                        st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
+                        st.session_state.regression_X_pred.values
+                    )
+                with st.expander("线性拟合", expanded=False):
+                    if st.session_state.regression_y_true is not None:
+                        judge[method] = [mse(st.session_state.regression_y_true, y_pred),
+                                            rmse(st.session_state.regression_y_true, y_pred),
+                                            mae(st.session_state.regression_y_true, y_pred)]
+                        st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
+                    else:
+                        st.text("无y_true，无评估指标")
+                    st.text(f"系数：{coefficients}，截距：{intercept}")
+            elif method == "岭回归":
+                if st.session_state.regression_use_example:
+                    coefficients, intercept, y_pred = ridge_regression(
+                        st.session_state.regression_X_train, st.session_state.regression_y_train,
+                        st.session_state.regression_X_pred, **params)
+                else:
+                    coefficients, intercept, y_pred = ridge_regression(
+                        st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
+                        st.session_state.regression_X_pred.values, **params)
+                with st.expander("岭回归", expanded=False):
+                    if st.session_state.regression_y_true is not None:
+                        judge[method] = [mse(st.session_state.regression_y_true, y_pred),
+                                            rmse(st.session_state.regression_y_true, y_pred),
+                                            mae(st.session_state.regression_y_true, y_pred)]
+                        st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
+                    else:
+                        st.text("无y_true，无评估指标")
+                    st.text(f"系数：{coefficients}，截距：{intercept}")
             elif method == "核岭回归":
-                cols = col1.columns(2)
-                method_params[method] = {
-                    "kernel": cols[0].selectbox("核岭回归 核函数", ["rbf", "linear", "poly"], key=f"{method}_kernel"),
-                    "gamma": cols[1].number_input("核岭回归 Gamma值", 0.0, 10.0, 1.0, key=f"{method}_gamma"),
-                    "alpha": 1.0
-                }
+                if st.session_state.regression_use_example:
+                    y_pred = kernel_ridge_regression(
+                        st.session_state.regression_X_train, st.session_state.regression_y_train,
+                        st.session_state.regression_X_pred, **params)
+                else:
+                    y_pred = kernel_ridge_regression(
+                        st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
+                        st.session_state.regression_X_pred.values, **params)
+                with st.expander("核岭回归", expanded=False):
+                    if st.session_state.regression_y_true is not None:
+                        judge[method] = [mse(st.session_state.regression_y_true, y_pred),
+                                            rmse(st.session_state.regression_y_true, y_pred),
+                                            mae(st.session_state.regression_y_true, y_pred)]
+                        st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
+                    else:
+                        st.text("无y_true，无评估指标")
             elif method == "ELM拟合":
-                cols = col1.columns(2)
-                method_params[method] = {
-                    "hidden_units": cols[0].number_input("ELM拟合 隐藏层单元数", 1, 500, 10, key=f"{method}_units"),
-                    "activation_func": cols[1].selectbox("ELM拟合 激活函数", ["sigmoid", "relu", "tanh"], key=f"{method}_act")
-                }
+                if st.session_state.regression_use_example:
+                    output_weights, _, y_pred = elm_fit(
+                        st.session_state.regression_X_train, st.session_state.regression_y_train,
+                        st.session_state.regression_X_pred, **params)
+                else:
+                    output_weights, _, y_pred = elm_fit(
+                        st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
+                        st.session_state.regression_X_pred.values, **params)
+                with st.expander("ELM拟合", expanded=False):
+                    if st.session_state.regression_y_true is not None:
+                        judge[method] = [mse(st.session_state.regression_y_true, y_pred),
+                                            rmse(st.session_state.regression_y_true, y_pred),
+                                            mae(st.session_state.regression_y_true, y_pred)]
+                        st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
+                    else:
+                        st.text("无y_true，无评估指标")
+                    st.text(f"输出权重：{output_weights}")
             elif method == "非线性拟合":
-                cols = col1.columns(3)
-                method_params[method] = {
-                    "basis_func_type": cols[0].selectbox("非线性拟合 基函数类型", ["polynomial", "interaction", "rbf"],
-                                                         key=f"{method}_basis"),
-                    "degree": cols[1].number_input("非线性拟合 多项式次数", 1, 10, 2, key=f"{method}_degree"),
-                    "interaction_only": cols[2].checkbox("非线性拟合 仅交互项", key=f"{method}_interaction")
-                }
-# ================= 拟合执行 =================
-with col2:
-    st.subheader("拟合参数")
-    judge = {}
-    if st.button("运行拟合"):
-        if "regression_X_train" not in st.session_state:
-            st.warning("请先生成或上传数据")
-            st.stop()
-
-        results = {}
-        for method in selected_methods:
-            try:
-                params = method_params.get(method, {})
-                if method == "线性拟合":
-                    if st.session_state.regression_use_example:
-                        coefficients, intercept, y_pred = linear_fit(
-                            st.session_state.regression_X_train, st.session_state.regression_y_train,
-                            st.session_state.regression_X_pred
-                            )
+                if st.session_state.regression_use_example:
+                    coefficients, intercept, y_pred = nonlinear_fit(
+                        st.session_state.regression_X_train, st.session_state.regression_y_train,
+                        st.session_state.regression_X_pred, **params)
+                else:
+                    coefficients, intercept, y_pred = nonlinear_fit(
+                        st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
+                        st.session_state.regression_X_pred.values, **params)
+                with st.expander("非线性拟合", expanded=False):
+                    if st.session_state.regression_y_true is not None:
+                        judge[method] = [mse(st.session_state.regression_y_true, y_pred),
+                                            rmse(st.session_state.regression_y_true, y_pred),
+                                            mae(st.session_state.regression_y_true, y_pred)]
+                        st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
                     else:
-                        coefficients, intercept, y_pred = linear_fit(
-                            st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
-                            st.session_state.regression_X_pred.values
-                            )
-                    with st.expander("线性拟合", expanded=False):
-                        if st.session_state.regression_y_true is not None:
-                            judge[method] = [mse(st.session_state.regression_y_true, y_pred),
-                                             rmse(st.session_state.regression_y_true, y_pred),
-                                             mae(st.session_state.regression_y_true, y_pred)]
-                            st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
-                        else:
-                            st.text("无y_true，无评估指标")
-                        st.text(f"系数：{coefficients}，截距：{intercept}")
-                elif method == "岭回归":
-                    if st.session_state.regression_use_example:
-                        coefficients, intercept, y_pred = ridge_regression(
-                            st.session_state.regression_X_train, st.session_state.regression_y_train,
-                            st.session_state.regression_X_pred, **params)
-                    else:
-                        coefficients, intercept, y_pred = ridge_regression(
-                            st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
-                            st.session_state.regression_X_pred.values, **params)
-                    with st.expander("岭回归", expanded=False):
-                        if st.session_state.regression_y_true is not None:
-                            judge[method] = [mse(st.session_state.regression_y_true, y_pred),
-                                             rmse(st.session_state.regression_y_true, y_pred),
-                                             mae(st.session_state.regression_y_true, y_pred)]
-                            st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
-                        else:
-                            st.text("无y_true，无评估指标")
-                        st.text(f"系数：{coefficients}，截距：{intercept}")
-                elif method == "核岭回归":
-                    if st.session_state.regression_use_example:
-                        y_pred = kernel_ridge_regression(
-                            st.session_state.regression_X_train, st.session_state.regression_y_train,
-                            st.session_state.regression_X_pred, **params)
-                    else:
-                        y_pred = kernel_ridge_regression(
-                            st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
-                            st.session_state.regression_X_pred.values, **params)
-                    with st.expander("核岭回归", expanded=False):
-                        if st.session_state.regression_y_true is not None:
-                            judge[method] = [mse(st.session_state.regression_y_true, y_pred),
-                                             rmse(st.session_state.regression_y_true, y_pred),
-                                             mae(st.session_state.regression_y_true, y_pred)]
-                            st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
-                        else:
-                            st.text("无y_true，无评估指标")
-                elif method == "ELM拟合":
-                    if st.session_state.regression_use_example:
-                        output_weights, _, y_pred = elm_fit(
-                            st.session_state.regression_X_train, st.session_state.regression_y_train,
-                            st.session_state.regression_X_pred, **params)
-                    else:
-                        output_weights, _, y_pred = elm_fit(
-                            st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
-                            st.session_state.regression_X_pred.values, **params)
-                    with st.expander("ELM拟合", expanded=False):
-                        if st.session_state.regression_y_true is not None:
-                            judge[method] = [mse(st.session_state.regression_y_true, y_pred),
-                                             rmse(st.session_state.regression_y_true, y_pred),
-                                             mae(st.session_state.regression_y_true, y_pred)]
-                            st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
-                        else:
-                            st.text("无y_true，无评估指标")
-                        st.text(f"输出权重：{output_weights}")
-                elif method == "非线性拟合":
-                    if st.session_state.regression_use_example:
-                        coefficients, intercept, y_pred = nonlinear_fit(
-                            st.session_state.regression_X_train, st.session_state.regression_y_train,
-                            st.session_state.regression_X_pred, **params)
-                    else:
-                        coefficients, intercept, y_pred = nonlinear_fit(
-                            st.session_state.regression_X_train.values, st.session_state.regression_y_train.values,
-                            st.session_state.regression_X_pred.values, **params)
-                    with st.expander("非线性拟合", expanded=False):
-                        if st.session_state.regression_y_true is not None:
-                            judge[method] = [mse(st.session_state.regression_y_true, y_pred),
-                                             rmse(st.session_state.regression_y_true, y_pred),
-                                             mae(st.session_state.regression_y_true, y_pred)]
-                            st.text(f"MSE:{mse(st.session_state.regression_y_true, y_pred)}，RMSE:{rmse(st.session_state.regression_y_true, y_pred)}，MAE:{mae(st.session_state.regression_y_true, y_pred)}")
-                        else:
-                            st.text("无y_true，无评估指标")
-                        st.text(f"系数：{coefficients}，截距：{intercept}")
-
-                results[method] = y_pred
-                st.success(f"{method} 拟合完成!")
-
-            except Exception as e:
-                st.error(f"{method} 拟合失败: {str(e)}")
-
-        with col1.expander("评判指标", expanded=True):
-            if len(judge):
-                df = pd.DataFrame(judge, index=["MSE","RMSE","MAE"])
-                st.dataframe(df)
-                st.line_chart(df, use_container_width=True)
-            else:
-                st.text("无y_true，无评估指标")
-
-        if results:
-            st.session_state.regression_results = results
-
-# ================= 可视化与评估 =================
-if "regression_results" in st.session_state:
-    st.markdown("---")
-    st.subheader("拟合效果对比")
-    feature_names = df_y_train.columns.tolist()
-    selected_feature = st.selectbox("选择要可视化的特征", feature_names)
-    feature_idx = feature_names.index(selected_feature)
-
-    # 添加原始数据显示开关
-    if st.session_state.regression_y_true is not None:
-        show_raw = st.checkbox("显示真实值", value=True, key='show_true_data')
-        if st.session_state.regression_use_example:
-            st.session_state.regression_results["真实值"] = st.session_state.regression_y_true
+                        st.text("无y_true，无评估指标")
+                    st.text(f"系数：{coefficients}，截距：{intercept}")
+            results[method] = y_pred
+            st.success(f"{method} 拟合完成!")
+        except Exception as e:
+            st.error(f"{method} 拟合失败: {str(e)}")
+    # 评判指标区块
+    with st.expander("📊 评判指标", expanded=False):
+        if len(judge):
+            df = pd.DataFrame(judge, index=["MSE", "RMSE", "MAE"])
+            st.dataframe(df)
+            st.line_chart(df, use_container_width=True)
         else:
-            st.session_state.regression_results["真实值"] = st.session_state.regression_y_true.values
-    else:show_raw = False
+            st.text("无y_true，无评估指标")
+    if results:
+        st.session_state.regression_results = results
 
-    # 准备数据
-    chart_data = {}
-    for method, data in st.session_state.regression_results.items():
-        if method == "真实值" and not show_raw:
-            continue
-        if len(data.shape)!=1:
-            chart_data[method] = data[:, feature_idx]
-        else:chart_data[method] = data
-
-    # 转换为DataFrame
-    chart_df = pd.DataFrame(chart_data)
-    chart_df.index.name = "样本索引"
-    # 使用Streamlit内置折线图
-    st.line_chart(chart_df, use_container_width=True)
-
+# ================= 结果导出部分 =================
 st.markdown("---")
 if 'regression_results' in st.session_state:
-    st.subheader("结果导出")
-    cols = st.columns(len(st.session_state.regression_results))
-    for idx, (method, data) in enumerate(st.session_state.regression_results.items()):
-        if method == "真实值":
-            continue
-
-        with cols[idx - 0]:
+    st.subheader("📥 结果导出")
+    result_methods = [m for m in st.session_state.regression_results if m != "真实值"]
+    cols = st.columns(len(result_methods))
+    feature_names = df_y_train.columns.tolist() if 'df_y_train' in locals() else None
+    for idx, method in enumerate(result_methods):
+        data = st.session_state.regression_results[method]
+        with cols[idx]:
             df_result = pd.DataFrame(data, columns=feature_names)
-            # 生成Excel字节流
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 df_result.to_excel(writer, index=False, sheet_name='Result')
             excel_bytes = excel_buffer.getvalue()
             st.download_button(
-                label=f"下载 {method} 结果",
+                label=f"⬇️ 下载 {method} 结果",
                 data=excel_bytes,
                 file_name=f"{method}_result.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"btn_{method}"
             )
-
-            if st.checkbox(f"显示{method}结果", key=f"cb_{method}"):
+            if st.checkbox(f"👁️ 显示{method}结果", key=f"cb_{method}"):
                 st.dataframe(df_result)

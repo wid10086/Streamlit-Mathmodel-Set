@@ -263,85 +263,81 @@ def prophet_forecast(data, period=30, freq='D', seasonality_mode='additive',
     return forecast
 
 # ================= 页面配置 =================
-st.set_page_config(layout="wide", page_title="时间序列预测")
-st.title("时间序列预测分析")
+st.set_page_config(layout="wide", page_title="⏳ 时间序列预测")
+st.title("⏳ 时间序列预测分析")
 
 # ================= 数据配置 =================
 with st.expander("📊 数据配置", expanded=True):
-    data_col1, data_col2 = st.columns([1, 2])
+    data_source = st.radio(
+        "请选择数据来源",
+        options=["生成示例数据", "上传自定义数据"],
+        horizontal=True,
+        key="ts_data_source_radio"
+    )
 
-    with data_col1:
-        st.subheader("示例数据生成")
-        time_freq = st.selectbox("时间频率", ["D", "M", "Y"], index=0)
-        n_samples = st.number_input("样本数量", 50, 1000, 365)
-        add_noise = st.checkbox("添加噪声")
-        add_outliers = st.checkbox("添加离群点")
+    if data_source == "生成示例数据":
+        st.subheader("✨ 示例数据生成")
+        with st.form("ts_example_form"):
+            x1, x2 = st.columns(2)
+            time_freq = x1.selectbox("时间频率", ["D", "M", "Y"], index=0, key="ts_freq")
+            n_samples = x2.number_input("样本数量", 50, 1000, 365, key="ts_n_samples")
+            add_noise = x1.checkbox("添加噪声", key="ts_add_noise")
+            add_outliers = x2.checkbox("添加离群点", key="ts_add_outliers")
+            submit_example = st.form_submit_button("生成示例数据")
+            if submit_example:
+                dates = pd.date_range(start='2020-01-01', periods=n_samples, freq=time_freq)
+                base = np.linspace(50, 100, n_samples)
+                y = base + 5 * np.sin(np.linspace(0, 4 * np.pi, n_samples))
+                if add_noise:
+                    y += np.random.normal(0, 3, n_samples)
+                if add_outliers:
+                    outlier_idx = np.random.choice(n_samples, size=max(3, n_samples // 20), replace=False)
+                    y[outlier_idx] *= 2.5
+                y = np.abs(y)
+                time_series_data = pd.DataFrame({'ds': dates, 'y': y})
+                st.session_state.update({
+                    "time_series_data": time_series_data,
+                    "time_series_use_example": True
+                })
+                st.success("示例数据生成成功!")
 
-        if st.button("生成示例数据"):
-            dates = pd.date_range(start='2020-01-01', periods=n_samples, freq=time_freq)
-            base = np.linspace(50, 100, n_samples)
-            y = base + 5 * np.sin(np.linspace(0, 4 * np.pi, n_samples))
-
-            if add_noise:
-                y += np.random.normal(0, 3, n_samples)
-            if add_outliers:
-                outlier_idx = np.random.choice(n_samples, size=max(3, n_samples // 20), replace=False)
-                y[outlier_idx] *= 2.5
-
-            # 确保非负（适用于灰色预测）
-            y = np.abs(y)
-
-            time_series_data = pd.DataFrame({
-                'ds': dates,
-                'y': y
-            })
-
-            st.session_state.update({
-                "time_series_data": time_series_data,
-                "time_series_use_example": True
-            })
-            st.success("示例数据生成成功!")
-
-    with data_col2:
-        st.subheader("上传自定义数据")
-        uploaded_file = st.file_uploader("上传CSV/Excel文件", type=["csv", "xlsx"])
+    elif data_source == "上传自定义数据":
+        st.subheader("📤 上传自定义数据")
+        uploaded_file = st.file_uploader("上传CSV/Excel文件", type=["csv", "xlsx"], key="ts_upload")
         if uploaded_file:
             try:
                 if uploaded_file.name.endswith('.csv'):
                     df = pd.read_csv(uploaded_file)
                 else:
                     df = pd.read_excel(uploaded_file)
-
-                # 自动检测时间列
-                time_col = st.selectbox("选择时间列", df.columns)
-                value_col = st.selectbox("选择数值列", df.columns)
-
-                if st.button("确认数据格式"):
+                time_col = st.selectbox("选择时间列", df.columns, key="ts_time_col")
+                value_col = st.selectbox("选择数值列", df.columns, key="ts_value_col")
+                if st.button("确认数据格式", key="ts_confirm_format"):
                     df['ds'] = pd.to_datetime(df[time_col])
                     df['y'] = df[value_col].astype(float)
                     df = df[['ds', 'y']].dropna()
-
                     st.session_state.update({
                         "time_series_data": df,
                         "time_series_use_example": False
                     })
                     st.success("数据加载成功!")
-
             except Exception as e:
                 st.error(f"数据加载错误: {str(e)}")
 
-# ================= 数据预览 =================
-if "time_series_data" in st.session_state:
-    with st.expander("🔍 数据预览", expanded=True):
-        cols = st.columns(2)
-        df = st.session_state.time_series_data
-        cols[0].write(f"数据维度：{df.shape}")
-        cols[0].dataframe(df)
-        cols[1].line_chart(df.set_index('ds')['y'], use_container_width=True)
+# ================= 数据初始化和预览 =================
+with st.expander("🔍 数据预览", expanded=False):
+    if "time_series_data" not in st.session_state:
+        st.warning("请先生成或上传数据")
+        st.stop()
+    df = st.session_state.time_series_data
+    cols = st.columns(2)
+    cols[0].write(f"📏 数据维度：{df.shape}")
+    cols[0].dataframe(df)
+    cols[1].line_chart(df.set_index('ds')['y'], use_container_width=True)
 
 # ================= 方法配置 =================
 st.markdown("---")
-method = st.selectbox("选择预测方法",
+method = st.selectbox("🧮 选择预测方法",
                       ["ARIMA", "灰色预测", "Prophet"],
                       index=0)
 
@@ -368,7 +364,7 @@ elif method == "Prophet":
         params['growth'] = st.selectbox("增长类型", ["linear", "logistic"])
 
 # ================= 执行预测 =================
-if st.button("开始预测") and "time_series_data" in st.session_state:
+if st.button("🚀 开始预测") and "time_series_data" in st.session_state:
     df = st.session_state.time_series_data
     results = {}
 
@@ -417,17 +413,16 @@ if "time_series_results" in st.session_state:
 
         with col2:
             st.dataframe(forecast_df)
-
             # 结果下载
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 forecast_df.to_excel(writer, sheet_name='预测结果')
             st.download_button(
-                label="下载预测结果",
+                label="⬇️ 下载预测结果",
                 data=excel_buffer.getvalue(),
                 file_name=f"{method}_预测结果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
 st.markdown("---")
-st.caption("提示：灰色预测要求数据非负，Prophet需要包含'ds'和'y'列的时间序列数据")
+st.caption("💡 提示：灰色预测要求数据非负，Prophet需要包含'ds'和'y'列的时间序列数据")

@@ -179,33 +179,33 @@ def entropy_weight_method(data_matrix):
 
 # ================= 页面配置 =================
 st.set_page_config(layout="wide")
-st.title("多准则决策分析/评估")
+st.title("📊 多准则决策分析/评估")
 criteria_names = []
 ways_name = []
 st.session_state.eval_data = None
 
 # ================= 侧边栏 - 方法选择 =================
 with st.container(border= True):
-    st.text(" 配置")
+    st.markdown("### ⚙️ 配置")
     col1, col2 = st.columns(2)
     with col1:
-        n_features = st.number_input("特征/准则数量", min_value=2, max_value=10, value=3, key="evaluate_n_features")
-        way_num = st.number_input("方案数", min_value=1, max_value=10, value=1, key="way_num")
+        n_features = st.number_input("🔢 特征/准则数量", min_value=2, max_value=10, value=3, key="evaluate_n_features")
+        way_num = st.number_input("🧑‍🤝‍🧑 方案数", min_value=1, max_value=10, value=1, key="way_num")
         method = st.selectbox(
-            "选择分析方法",
+            "🧮 选择分析方法",
             ["AHP", "TOPSIS", "模糊综合评价", "熵权法"],
             key="evaluate_method"
         )
 
     with col2:
-        with st.expander("自定义准则名称(不可重名)"):
+        with st.expander("📝 自定义准则名称(不可重名)"):
             for i in range(n_features):
                 criteria_names.append(st.text_input(f"准则{i + 1}", value=f"C{i + 1}"))
-        with st.expander("自定义方案名称(不可重名)"):
+        with st.expander("📝 自定义方案名称(不可重名)"):
             for i in range(way_num):
                 ways_name.append(st.text_input(f"方案{i + 1}", value=f"P{i + 1}"))
         if method =="TOPSIS" or method == "熵权法":
-            with st.expander("自定义文件上传"):
+            with st.expander("📤 自定义文件上传"):
                 with st.form("文件上传"):
                     file = st.file_uploader(f"依照示例格式上传数据文件（第一列为数据，不是列名）,", type=["xlsx", "xls"])
                     sheet = st.text_input(f"数据工作表名（Excel）", value="Sheet1")
@@ -229,59 +229,60 @@ params = {}
 def fun(method,n_features,way_num):
     with st.container(border=True):
         row = st.columns(3)
-        row[0].text("参数配置")
+        row[0].markdown("#### ⚙️ 参数配置")
         character = criteria_names
-        show = row[1].checkbox("查看矩阵")
+        show = row[1].checkbox("👁️ 查看矩阵")
         if method == "AHP":
             row = st.columns(2)
-            matrix = np.ones((n_features, n_features))
             with row[0]:
-                with st.expander("准则相对重要程度"):
-                    st.markdown("a vs b > 1，则a更重要。")
-                    st.text("使用1-9标度：1=同等重要，9=极端重要。")
+                with st.expander("🟦 准则相对重要程度（1/9~9,只需填写右上方表格）", expanded=True):
+                    st.markdown("填写判断矩阵，a(i,j)>1表示i比j更重要，a(i,j)<1表示i比j更不重要。主对角线必须为1。")
+                    # 默认生成1的矩阵
+                    matrix_df = pd.DataFrame(np.ones((n_features, n_features)), index=criteria_names, columns=criteria_names)
                     for i in range(n_features):
-                        for j in range(i,n_features):
-                            if i == j:
-                                continue
-                            label = f"{criteria_names[i]} vs {criteria_names[j]}"
-                            value = st.selectbox(
-                                label,
-                                options=[1 / 9, 1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2, 1, 2, 3, 4, 5, 6, 7, 8,
-                                         9],
-                                index=8+j-i if 8+j-i<17 else 16,
-                                format_func=lambda x: f"{x:.2f}" if x < 1 else f"{int(x)}",
-                                key=f"准则{i}-{j}"
-                            )
-                            matrix[i][j] = value
-                            matrix[j][i] = 1 / value
+                        for j in range(i):
+                            matrix_df.iloc[i, j] = None
+                    # 允许用户编辑上三角（不含对角线），下三角自动填1/值
+                    edited_df = st.data_editor(
+                        matrix_df,
+                        key="ahp_matrix_editor",
+                        num_rows="fixed",
+                        use_container_width=True
+                    )
+                    # 保证主对角线为1，下三角为上三角的倒数
+                    for i in range(n_features):
+                        edited_df.iloc[i, i] = 1.0
+                        for j in range(i+1, n_features):
+                            edited_df.iloc[j, i] = 1.0 / edited_df.iloc[i, j]
+                    matrix = edited_df.values
 
-                criteria_matrix = pd.DataFrame(matrix, index=character, columns=character)
+                criteria_matrix = pd.DataFrame(matrix, index=criteria_names, columns=criteria_names)
                 if show:
                     st.markdown("准则层判断矩阵")
                     st.dataframe(criteria_matrix, key="criteria")
             with row[1]:
                 alternative_matrices = []
                 with st.container( border=True):
-                    st.text("AHP方案层(得分规则同准则相对重要程度) ")
+                    st.markdown("#### 🟩 AHP方案层(得分规则同准则相对重要程度) ")
                     for i in range(n_features):
-                        x = np.ones((way_num,way_num))
-                        #st.text(f"{criteria_names[i]}")
-                        with st.expander(f"{criteria_names[i]}中各方案相对得分"):
+                        # 默认生成1的矩阵
+                        alt_matrix_df = pd.DataFrame(np.ones((way_num, way_num)), index=ways_name, columns=ways_name)
+                        for j in range(way_num):
+                            for k in range(j):
+                                alt_matrix_df.iloc[j, k] = None
+                        with st.expander(f"{criteria_names[i]}中各方案相对得分（填写上三角，主对角线为1）"):
+                            edited_alt_df = st.data_editor(
+                                alt_matrix_df,
+                                key=f"ahp_alt_matrix_editor_{i}",
+                                num_rows="fixed",
+                                use_container_width=True
+                            )
+                            # 保证主对角线为1，下三角为上三角的倒数
                             for j in range(way_num):
-                                for k in range(j,way_num):
-                                    if j==k:
-                                        continue
-                                    label = f"{ways_name[j]} vs {ways_name[k]}"
-                                    value = st.selectbox(
-                                        label,
-                                        options=[1 / 9, 1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2, 1, 2, 3, 4, 5,
-                                                 6, 7, 8, 9],
-                                        index=8-j+k,
-                                        format_func=lambda x: f"{x:.2f}" if x < 1 else f"{int(x)}",
-                                        key=f"特征{i}-方案{j}-{k}"
-                                    )
-                                    x[j][k] = value
-                                    x[k][j] = 1/value
+                                edited_alt_df.iloc[j, j] = 1.0
+                                for k in range(j+1, way_num):
+                                    edited_alt_df.iloc[k, j] = 1.0 / edited_alt_df.iloc[j, k]
+                            x = edited_alt_df.values
                             if show:
                                 st.dataframe(pd.DataFrame(x,index=ways_name,columns=ways_name),key=f"方案{i}")
                         alternative_matrices.append(x)
@@ -289,40 +290,55 @@ def fun(method,n_features,way_num):
             params['alternative_matrices'] = alternative_matrices
 
         elif method == "TOPSIS":
-            row = st.columns(2)
             data_matrix_topsis = np.ones((way_num, n_features))
-            with row[0]:
-                if st.session_state.eval_data is None:
-                    with st.expander("不同方案在不同准则的属性"):
-                        for i in range(way_num):
-                            cols = st.columns(n_features)
-                            for j in range(n_features):
-                                data_matrix_topsis[i][j] = cols[j].number_input(f"{ways_name[i]}中{criteria_names[j]}的属性",value=1.0,key=f"属性{i}-{j}")
-                else:
-                    st.text("已存在文件")
-                    data_matrix_topsis = st.session_state.eval_data.values
-                params["benefit_attributes_topsis"] = st.multiselect(
-                    "选择效益属性（越大越好的特征,未选特征即为越大越坏的特征）",
-                    options=list(range(n_features)),
-                    format_func=lambda x: f"{criteria_names[x]}"
+            if st.session_state.eval_data is None:
+                    # 构建默认数据表
+                data_matrix_df = pd.DataFrame(
+                    np.ones((way_num, n_features)),
+                    index=ways_name,
+                    columns=criteria_names
                 )
-                if show:
-                    st.text("决策矩阵")
-                    st.dataframe(pd.DataFrame(data_matrix_topsis,index=ways_name,columns=character),key="决策矩阵")
-            params["data_matrix_topsis"] = data_matrix_topsis
-            with row[1]:
-                topsis_weights = np.ones((1, n_features))
-                with st.expander("准则权重(会自动归一化)"):
-                    cols = st.columns((n_features))
-                    for i in range(n_features):
-                        topsis_weights[0][i] = cols[i].number_input(f"{criteria_names[i]}",key=f"准则权重{i}",min_value=0.0,value=1.0/n_features)
+                # 允许用户直接编辑整个表格
+                edited_df = st.data_editor(
+                    data_matrix_df,
+                    key="topsis_data_matrix_editor" ,
+                    num_rows="fixed",
+                    use_container_width=True
+                )
+                data_matrix_topsis = edited_df.values 
+            else:
+                st.text("已存在文件")
+                data_matrix_topsis = st.session_state.eval_data.values
+            with st.expander("🟨 准则权重(会自动归一化)"):
+                # 构建权重表格
+                weights_df = pd.DataFrame(
+                    np.ones((1, n_features)) / n_features,
+                    columns=criteria_names,
+                    index=["权重"]
+                )
+                edited_weights_df = st.data_editor(
+                    weights_df,
+                    key="topsis_weights_editor",
+                    num_rows="fixed",
+                    use_container_width=True
+                )
+                topsis_weights = edited_weights_df.values
 
                 params["weights_topsis"] = topsis_weights
+            params["benefit_attributes_topsis"] = st.multiselect(
+                "✨ 选择效益属性（越大越好的特征,未选特征即为越大越坏的特征）",
+                options=list(range(n_features)),
+                format_func=lambda x: f"{criteria_names[x]}"
+            )
+            if show:
+                st.text("决策矩阵")
+                st.dataframe(pd.DataFrame(data_matrix_topsis,index=ways_name,columns=character),key="决策矩阵")
+            params["data_matrix_topsis"] = data_matrix_topsis
 
         elif method == "模糊综合评价":
             cols=st.columns(2)
             with cols[0]:
-                eval_num = st.number_input("评语等级数量",min_value=2,max_value=5,value=3)
+                eval_num = st.number_input("🔢 评语等级数量",min_value=2,max_value=5,value=3)
                 evaluation_levels_fuzzy = np.zeros(eval_num)
                 str_k = ['优','较优','中','较差','差']
                 if eval_num ==2:
@@ -333,7 +349,7 @@ def fun(method,n_features,way_num):
                     str_eval = [str_k[0],str_k[2],str_k[3],str_k[4]]
                 elif eval_num==5:
                     str_eval = str_k
-                with st.expander("评语等级设置"):
+                with st.expander("🟪 评语等级设置"):
                     col = st.columns(eval_num)
                     for i in range(eval_num):
                         level_value = col[i].number_input(
@@ -357,7 +373,7 @@ def fun(method,n_features,way_num):
                     else:
                         st.error("评语等级值设置错误：值必须是递减的！")
                 criteria_weights_fuzzy = np.ones(n_features)
-                with st.expander("准则权重(会自动归一化)"):
+                with st.expander("🟨 准则权重(会自动归一化)"):
                     col = st.columns((n_features))
                     for i in range(n_features):
                         criteria_weights_fuzzy[i] = col[i].number_input(f"{criteria_names[i]}", key=f"准则权重{criteria_names[i]}",
@@ -368,30 +384,48 @@ def fun(method,n_features,way_num):
                 params["evaluation_levels_fuzzy"] = evaluation_levels_fuzzy
             with cols[1]:
                 with st.container(border=True):
-                    st.text("模糊综合评价方案 ")
+                    st.markdown("#### 🟧 模糊综合评价方案（直接在表格中填写各方案的隶属度）")
                     membership_degrees_fuzzy = []
                     for i in range(way_num):
-                        with st.expander(f"方案{ways_name[i]}"):
-                            row = st.columns(eval_num)
-                            a=[]
-                            for j in range(n_features):
-                                b=[]
-                                for k in range(eval_num):
-                                    b.append(row[k].number_input(f"方案{ways_name[i]}{criteria_names[j]}下隶属度的{str_eval[k]}的评分",min_value=0.0,value=1.0 - 1 *k/eval_num))
-                                a.append(b)
-                            if show:
-                                st.dataframe(pd.DataFrame(a,index=criteria_names,columns=str_eval),key=f"{ways_name[i]}隶属度")
+                        # 构建与原来一致的默认隶属度矩阵
+                        default_values = np.zeros((n_features, eval_num))
+                        for j in range(n_features):
+                            for k in range(eval_num):
+                                default_values[j, k] = 1.0 - 1 * k / eval_num
+                        fuzzy_df = pd.DataFrame(
+                            default_values,
+                            index=criteria_names,
+                            columns=str_eval
+                        )
+                        # 允许用户直接编辑整个表格
+                        edited_fuzzy_df = st.data_editor(
+                            fuzzy_df,
+                            key=f"fuzzy_membership_{i}",
+                            num_rows="fixed",
+                            use_container_width=True
+                        )
+                        a = edited_fuzzy_df.values
+                        if show:
+                            st.dataframe(pd.DataFrame(a, index=criteria_names, columns=str_eval), key=f"{ways_name[i]}隶属度")
                         membership_degrees_fuzzy.append(a)
                     params['membership_degrees_fuzzy'] = np.array(membership_degrees_fuzzy)
         elif method == "熵权法":
             if st.session_state.eval_data is None:
-                with st.expander("不同方案在不同准则的属性"):
-                    data_matrix_entropy = np.ones((way_num, n_features))
-                    for i in range(way_num):
-                        cols = st.columns(n_features)
-                        for j in range(n_features):
-                            data_matrix_entropy[i][j] = cols[j].number_input(f"{ways_name[i]}中{criteria_names[j]}的属性",
-                                                                            value=1.0, key=f"属性{i}-{j}")
+                with st.expander("🟦 不同方案在不同准则的属性"):
+                    # 构建默认数据表
+                    data_matrix_df = pd.DataFrame(
+                        np.ones((way_num, n_features)),
+                        index=ways_name,
+                        columns=criteria_names
+                    )
+                    # 允许用户直接编辑整个表格
+                    edited_df = st.data_editor(
+                        data_matrix_df,
+                        key="entropy_data_matrix_editor",
+                        num_rows="fixed",
+                        use_container_width=True
+                    )
+                    data_matrix_entropy = edited_df.values
             else:
                 st.text("已存在文件")
                 data_matrix_entropy = st.session_state.eval_data.values
@@ -399,7 +433,7 @@ def fun(method,n_features,way_num):
                 st.text("决策矩阵")
                 st.dataframe(pd.DataFrame(data_matrix_entropy, index=ways_name, columns=character), key="决策矩阵")
             params['data_matrix_entropy'] = data_matrix_entropy
-        if st.button("开始计算"):
+        if st.button("🚀 开始计算"):
             #params
             st.markdown("---")
             if method == "AHP":
